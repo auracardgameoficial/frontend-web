@@ -16,7 +16,7 @@ import {
 } from './services/socketClient';
 import type { ConnectionState, FlowStep, MatchEventsState, MatchState, SessionState } from './types/app-state';
 import { SOCKET_CONTRACT_VERSION } from './contracts/socket-contracts';
-import { API_URL } from './config';
+import { API_URL, ENABLE_MOCK_MODE } from './config';
 import {
   hasFirebaseConfig,
   loginAnonymously,
@@ -34,7 +34,7 @@ const INITIAL_CONNECTION: ConnectionState = {
   reconnectAttempts: 0,
 };
 
-const CAN_USE_MOCK_MODE = import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK_MODE === 'true';
+const CAN_USE_MOCK_MODE = ENABLE_MOCK_MODE;
 
 function mapDeckErrorMessage(motivo?: string) {
   if (!motivo) return undefined;

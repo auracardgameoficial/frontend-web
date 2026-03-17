@@ -59,16 +59,28 @@ VITE_FIREBASE_PROJECT_ID=...
 VITE_FIREBASE_APP_ID=...
 ```
 
-## Variáveis de ambiente
+## Configuração de ambiente
 
-| Variável | Uso atual | Status |
-| --- | --- | --- |
-| `VITE_API_URL` | URL do backend Socket/API em dev/prod. | **Usada de fato** |
-| `VITE_ENABLE_MOCK_MODE` | Habilita mock server em desenvolvimento. | **Usada de fato** |
-| `VITE_FIREBASE_API_KEY` | Configuração Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
-| `VITE_FIREBASE_AUTH_DOMAIN` | Configuração Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
-| `VITE_FIREBASE_PROJECT_ID` | Configuração Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
-| `VITE_FIREBASE_APP_ID` | Configuração Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
+1. Copie o arquivo de exemplo:
+
+```bash
+cp .env.example .env.local
+```
+
+2. Ajuste os valores em `.env.local` conforme seu ambiente.
+
+### Chaves disponíveis
+
+| Chave | Obrigatória hoje? | Fallback/comportamento sem valor | Status |
+| --- | --- | --- | --- |
+| `VITE_API_URL` | Não | Usa `http://localhost:3000` quando ausente ou vazia. | **Ativa** |
+| `VITE_ENABLE_MOCK_MODE` | Não | Assume `false` quando ausente/inválida; só funciona em `DEV`. | **Ativa** |
+| `VITE_FIREBASE_API_KEY` | Não | Permanece `undefined` quando ausente. | **Planejada (roadmap)** |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Não | Permanece `undefined` quando ausente. | **Planejada (roadmap)** |
+| `VITE_FIREBASE_PROJECT_ID` | Não | Permanece `undefined` quando ausente. | **Planejada (roadmap)** |
+| `VITE_FIREBASE_APP_ID` | Não | Permanece `undefined` quando ausente. | **Planejada (roadmap)** |
+
+> Observação: as variáveis `VITE_FIREBASE_*` já estão previstas para a integração futura, mas o fluxo atual segue usando persistência local para auth/decks.
 
 ## Modo mock server
 

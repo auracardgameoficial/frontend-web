@@ -1,5 +1,7 @@
 # Aura Cardgame Frontend (React + Vite)
 
+[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+
 Frontend para consumir eventos Socket.IO do backend com fluxo completo de partida.
 
 ## Módulos implementados

@@ -105,6 +105,17 @@ VITE_API_URL=http://localhost:3000 npm run dev
 ```
 
 
+## Scripts disponíveis
+
+- `npm run dev`: inicia o app em modo de desenvolvimento.
+- `npm run build`: gera o build de produção com Vite.
+- `npm run preview`: sobe o preview do build localmente.
+- `npm run typecheck`: valida os tipos TypeScript sem gerar artefatos (`tsc --noEmit`).
+- `npm run lint`: roda ESLint em todo o projeto.
+- `npm run lint:fix`: aplica correções automáticas de ESLint e formatação com Prettier.
+- `npm run test`: executa os testes com Vitest em modo não interativo.
+- `npm run test:watch`: executa os testes com Vitest em watch mode.
+
 ## Deck builder e coleção
 
 - Catálogo carregado de `cartas_mestras`.

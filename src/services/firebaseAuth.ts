@@ -1,3 +1,4 @@
+import { HAS_FIREBASE_ENV } from '../config';
 export type User = {
   uid: string;
   email?: string;
@@ -18,7 +19,7 @@ const USERS_KEY = 'aura.auth.users';
 const listeners = new Set<(user: User | null) => void>();
 let currentUser: User | null = fromStorage();
 
-export const hasFirebaseConfig = true;
+export const hasFirebaseConfig = HAS_FIREBASE_ENV;
 export const app = {};
 export const auth = {};
 

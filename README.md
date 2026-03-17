@@ -1,19 +1,43 @@
 # Aura Cardgame Frontend (React + Vite)
 
-Frontend para consumir os eventos Socket.IO do backend com fluxo completo de partida.
+Frontend para consumir eventos Socket.IO do backend com fluxo completo de partida.
 
 ## Módulos implementados
 
-- Login (Firebase Auth: e-mail/senha ou anônimo)
+- Login
 - Lobby / Matchmaking
-- Coleção + Deck Builder (persistência de baralhos em Firestore)
+- Coleção + Deck Builder
 - Partida
 - Resultado
+
+## Estado atual da implementação
+
+Hoje o projeto roda em **modo local (funcionando de ponta a ponta)** para autenticação e decks:
+
+- `src/services/firebaseAuth.ts`: implementação local com `localStorage` para sessão, usuários e token mock (`local-token-*`).
+- `src/services/firestoreData.ts`: implementação local com `localStorage` para catálogo e baralhos por usuário.
+
+Ou seja, os nomes dos serviços seguem a interface de Firebase/Auth + Firestore, mas a persistência atual está local.
+
+## Modos de funcionamento
+
+### 1) Modo atual (ativo): localStorage
+
+- Autenticação local (e-mail/senha e anônimo) via `localStorage`.
+- Catálogo e decks salvos localmente por usuário.
+- Não depende de projeto Firebase configurado para funcionar.
+
+### 2) Modo alvo (roadmap): Firebase real
+
+- Firebase Auth real (e-mail/senha e anônimo com token real).
+- Firestore real para `cartas_mestras` e `usuarios/{userId}/baralhos/{deckId}`.
+- Esta integração continua como **roadmap/integração futura** neste momento.
 
 ## Camadas principais
 
 - `src/services/socketClient.ts`: encapsula conexão, assinatura de eventos e comandos de jogo.
-- `src/services/firebaseAuth.ts`: integração com Firebase Auth para sessão real.
+- `src/services/firebaseAuth.ts`: camada de autenticação (atualmente com persistência local).
+- `src/services/firestoreData.ts`: camada de dados de catálogo/decks (atualmente com persistência local).
 - `src/features/partida`: componentes de mão/campo/carta com base para habilidades especiais.
 
 ## Eventos sincronizados na UI
@@ -24,9 +48,9 @@ Frontend para consumir os eventos Socket.IO do backend com fluxo completo de par
 - `erro_partida`
 - reconexão (`disconnect`, `reconnect_attempt`, `reconnect`, `reconnect_failed`)
 
-## Auth Firebase
+## Firebase (roadmap / integração futura)
 
-Configure as variáveis abaixo para login real:
+Quando a integração real for ativada no código, usar:
 
 ```bash
 VITE_FIREBASE_API_KEY=...
@@ -34,6 +58,17 @@ VITE_FIREBASE_AUTH_DOMAIN=...
 VITE_FIREBASE_PROJECT_ID=...
 VITE_FIREBASE_APP_ID=...
 ```
+
+## Variáveis de ambiente
+
+| Variável | Uso atual | Status |
+| --- | --- | --- |
+| `VITE_API_URL` | URL do backend Socket/API em dev/prod. | **Usada de fato** |
+| `VITE_ENABLE_MOCK_MODE` | Habilita mock server em desenvolvimento. | **Usada de fato** |
+| `VITE_FIREBASE_API_KEY` | Configuração Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Configuração Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
+| `VITE_FIREBASE_PROJECT_ID` | Configuração Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
+| `VITE_FIREBASE_APP_ID` | Configuração Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
 
 ## Modo mock server
 

@@ -20,6 +20,20 @@ Stack principal:
 - **Firebase (Auth + Firestore)**
 
 ---
+## 1.1) Modos de funcionamento (situação atual vs alvo)
+
+### Modo atual (ativo e funcionando localmente)
+
+- `src/services/firebaseAuth.ts` opera com `localStorage` (sessão, usuários e token mock).
+- `src/services/firestoreData.ts` opera com `localStorage` (catálogo e baralhos por usuário).
+- O fluxo de login/deck builder funciona sem projeto Firebase real configurado.
+
+### Modo alvo (roadmap de integração)
+
+- Substituir implementação local por Firebase Auth real (token real).
+- Substituir persistência local por Firestore real (`cartas_mestras` e `usuarios/{userId}/baralhos/{deckId}`).
+- Até essa troca no código, Firebase permanece como **integração futura**.
+
 
 ## 2) Objetivo da separação
 
@@ -126,25 +140,18 @@ Mudanças de payload no backend sem versionamento de contrato quebram a UI.
 
 ---
 
-## 6) Variáveis de ambiente recomendadas
+## 6) Variáveis de ambiente (uso atual vs planejamento)
 
-Criar `.env.example` no novo repo com:
+| Variável | Finalidade | Status |
+| --- | --- | --- |
+| `VITE_API_URL` | Define endpoint do backend para Socket/API. | **Usada de fato** |
+| `VITE_ENABLE_MOCK_MODE` | Ativa mock server em dev. | **Usada de fato** |
+| `VITE_FIREBASE_API_KEY` | Configuração de Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Configuração de Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
+| `VITE_FIREBASE_PROJECT_ID` | Configuração de Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
+| `VITE_FIREBASE_APP_ID` | Configuração de Firebase Auth/Firestore reais. | **Planejada (roadmap)** |
 
-```bash
-# Backend
-VITE_API_URL=http://localhost:3000
-
-# Firebase
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_APP_ID=
-
-# Dev only
-VITE_ENABLE_MOCK_MODE=false
-```
-
-Sugestão: documentar em README quais são obrigatórias por ambiente.
+> Observação: apesar dos nomes dos serviços (`firebaseAuth` e `firestoreData`), a implementação atual ainda é local (`localStorage`).
 
 ---
 

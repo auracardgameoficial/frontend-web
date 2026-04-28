@@ -1,312 +1,74 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useState } from 'react';
 import { CollectionView } from './features/deck-builder/CollectionView';
 import { DeckBuilderView } from './features/deck-builder/DeckBuilderView';
 import { LobbyView } from './features/lobby/LobbyView';
 import { LoginView } from './features/login/LoginView';
 import { RegisterView } from './features/login/RegisterView';
+import { useAuthSession } from './features/login/useAuthSession';
 import { MatchmakingView } from './features/matchmaking/MatchmakingView';
 import { PartidaView } from './features/partida/PartidaView';
+import { useMatchSession } from './features/partida/useMatchSession';
 import { ResultadoView } from './features/resultado/ResultadoView';
-import { MockSocketClient, startMockServer } from './mock/mock-server';
-import {
-  SocketClientService,
-  createSocketClient,
-  type AuraSocket,
-  type MatchEventHandlers,
-} from './services/socketClient';
-import type { ConnectionState, FlowStep, MatchEventsState, MatchState, SessionState } from './types/app-state';
+import type { FlowStep, SessionState } from './types/app-state';
 import { SOCKET_CONTRACT_VERSION } from './contracts/socket-contracts';
-import { API_URL, ENABLE_MOCK_MODE } from './config';
-import {
-  hasFirebaseConfig,
-  loginAnonymously,
-  loginWithEmailPassword,
-  logout,
-  registerWithEmailPassword,
-  subscribeAuthState,
-  type User,
-} from './services/firebaseAuth';
-import { listCatalogCards, listUserDecks, saveUserDeck, type CatalogCard, type UserDeck } from './services/firestoreData';
-
-const INITIAL_CONNECTION: ConnectionState = {
-  connected: false,
-  reconnecting: false,
-  reconnectAttempts: 0,
-};
+import { ENABLE_MOCK_MODE } from './config';
 
 const CAN_USE_MOCK_MODE = ENABLE_MOCK_MODE;
 
-function mapDeckErrorMessage(motivo?: string) {
-  if (!motivo) return undefined;
-  if (motivo.toLowerCase().includes('baralho inválido')) {
-    return `Seu baralho está inválido para jogar. ${motivo} Abra o deck builder para corrigir (30 cartas, máximo 3 cópias).`;
-  }
-  return undefined;
-}
-
 export default function App() {
   const [step, setStep] = useState<FlowStep>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [authUser, setAuthUser] = useState<User | null>(null);
-  const [authError, setAuthError] = useState<string | undefined>(undefined);
-
-  const [deckId, setDeckId] = useState('');
   const [deckErrorMessage, setDeckErrorMessage] = useState<string | undefined>(undefined);
-  const [decks, setDecks] = useState<UserDeck[]>([]);
-  const [catalogCards, setCatalogCards] = useState<CatalogCard[]>([]);
-  const [selectedDeckForBuilder, setSelectedDeckForBuilder] = useState<UserDeck | undefined>(undefined);
 
-  const [mockMode, setMockMode] = useState(CAN_USE_MOCK_MODE);
-  const [events, setEvents] = useState<MatchEventsState>({});
-  const [session, setSession] = useState<SessionState | null>(null);
-  const [match, setMatch] = useState<MatchState>({});
-  const [connection, setConnection] = useState<ConnectionState>(INITIAL_CONNECTION);
-
-  const socketRef = useRef<SocketClientService | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = subscribeAuthState((user) => {
-      setAuthUser(user);
-      setAuthError(undefined);
-    });
-
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (!authUser) {
-      setDecks([]);
-      setCatalogCards([]);
-      setDeckId('');
-      return;
-    }
-
-    const loadFirestoreData = async () => {
-      const [loadedDecks, loadedCatalog] = await Promise.all([listUserDecks(authUser.uid), listCatalogCards()]);
-      setDecks(loadedDecks);
-      setCatalogCards(loadedCatalog);
-      setDeckId((current) => current || loadedDecks[0]?.id || '');
-    };
-
-    void loadFirestoreData();
-  }, [authUser]);
-
-  const status = useMemo(() => events.matchmakingStatus?.mensagem, [events.matchmakingStatus]);
-
-  const createTransport = (newSession: SessionState): AuraSocket | MockSocketClient => {
-    if (mockMode) {
-      const mock = new MockSocketClient();
-      startMockServer(mock, newSession.userId);
-      return mock;
-    }
-
-    return createSocketClient({
-      url: API_URL,
-      token: newSession.token,
-    });
-  };
-
-  const subscribeEvents = (service: SocketClientService, newSession: SessionState) => {
-    const handlers: MatchEventHandlers = {
-      onConnected: () => setConnection((prev) => ({ ...prev, connected: true, reconnecting: false })),
-      onDisconnected: (reason) =>
-        setConnection((prev) => ({
-          ...prev,
-          connected: false,
-          reconnecting: true,
-          reconnectingMessage: `Conexão perdida (${reason}). Tentando retorno...`,
-        })),
-      onReconnectAttempt: (attempt) =>
-        setConnection((prev) => ({
-          ...prev,
-          reconnecting: true,
-          reconnectAttempts: attempt,
-          reconnectingMessage: `Tentativa de reconexão #${attempt}`,
-        })),
-      onReconnectSuccess: () =>
-        setConnection((prev) => ({
-          ...prev,
-          connected: true,
-          reconnecting: false,
-          reconnectingMessage: undefined,
-        })),
-      onReconnectFailed: () =>
-        setConnection((prev) => ({
-          ...prev,
-          connected: false,
-          reconnecting: false,
-          reconnectingMessage: 'Não foi possível reconectar.',
-          abandonmentDefeat: true,
-        })),
-      onStatusMatchmaking: (payload) => {
-        setEvents((prev) => ({ ...prev, matchmakingStatus: payload }));
-        setStep('matchmaking');
-      },
-      onPartidaEncontrada: (payload) => {
-        setEvents((prev) => ({ ...prev, partidaEncontrada: payload }));
-        setMatch({ sala: payload.sala, estado: payload.estado });
-        setStep('partida');
-      },
-      onEstadoAtualizado: (payload) => {
-        setEvents((prev) => ({ ...prev, estadoAtualizado: payload }));
-        setMatch((prev) => ({ ...prev, sala: payload.sala, estado: payload.estado }));
-      },
-      onFimDeJogo: (payload) => {
-        setEvents((prev) => ({ ...prev, fimDeJogo: payload }));
-        setStep('resultado');
-      },
-      onErroPartida: (payload) => {
-        setEvents((prev) => ({ ...prev, erroPartida: payload }));
-        const deckError = mapDeckErrorMessage(payload.motivo);
-        if (deckError) {
-          setDeckErrorMessage(deckError);
-          setStep('deckbuilder');
-          return;
-        }
-
-        if (payload.motivo.toLowerCase().includes('abandono')) {
-          setConnection((prev) => ({ ...prev, abandonmentDefeat: true }));
-          setStep('resultado');
-        }
-      },
-    };
-
-    service.subscribe(handlers);
-    service.reconectarPartida(match.sala ?? `mock_${newSession.userId}`);
-  };
-
-  const handleEmailPasswordLogin = async () => {
-    try {
-      setAuthError(undefined);
-      await loginWithEmailPassword(email, password);
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Falha ao autenticar com e-mail/senha.');
-    }
-  };
+  const authSession = useAuthSession();
+  const matchSession = useMatchSession({
+    initialMockMode: CAN_USE_MOCK_MODE,
+    onNavigate: setStep,
+    onDeckValidationError: setDeckErrorMessage,
+  });
 
   const handleRegister = async () => {
-    if (password.length < 6) {
-      setAuthError('A senha precisa ter ao menos 6 caracteres.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setAuthError('As senhas não conferem.');
-      return;
-    }
-
-    try {
-      setAuthError(undefined);
-      await registerWithEmailPassword(email, password);
+    const didRegister = await authSession.register();
+    if (didRegister) {
       setStep('login');
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Falha ao criar conta.');
-    }
-  };
-
-  const handleAnonymousLogin = async () => {
-    try {
-      setAuthError(undefined);
-      await loginAnonymously();
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Falha ao autenticar anonimamente.');
     }
   };
 
   const handleLogin = async () => {
-    if (!authUser) {
-      setAuthError('Autentique-se antes de continuar.');
+    if (!authSession.authUser) {
+      authSession.setAuthError('Autentique-se antes de continuar.');
       return;
     }
 
-    if (!deckId) {
-      setAuthError('Selecione ou crie um baralho antes de continuar.');
+    if (!authSession.deckId) {
+      authSession.setAuthError('Selecione ou crie um baralho antes de continuar.');
       setStep('deckbuilder');
       return;
     }
 
-    const idToken = await authUser.getIdToken();
-    const newSession = { token: idToken, userId: authUser.uid, deckId };
-    socketRef.current?.disconnect();
-
-    const transport = createTransport(newSession);
-    const service = new SocketClientService(transport as any);
-
-    socketRef.current = service;
-    setSession(newSession);
-    setConnection(INITIAL_CONNECTION);
-    subscribeEvents(service, newSession);
-
-    setStep('lobby');
+    const idToken = await authSession.authUser.getIdToken();
+    const newSession: SessionState = { token: idToken, userId: authSession.authUser.uid, deckId: authSession.deckId };
+    matchSession.startSession(newSession);
   };
 
   const handleBuscarPartida = () => {
-    if (!deckId) {
+    if (!authSession.deckId) {
       setDeckErrorMessage('Selecione um baralho antes de buscar partida.');
       return;
     }
+
     setDeckErrorMessage(undefined);
-    socketRef.current?.buscarPartida(deckId);
+    matchSession.buscarPartida(authSession.deckId);
   };
 
   const handleSaveDeck = async (id: string, name: string, cartas: string[]) => {
-    if (!authUser) {
-      throw new Error('Usuário não autenticado.');
-    }
-
-    await saveUserDeck(authUser.uid, id, cartas, name);
-    const loadedDecks = await listUserDecks(authUser.uid);
-    setDecks(loadedDecks);
-    setDeckId(id);
+    await authSession.saveDeck(id, name, cartas);
     setDeckErrorMessage(undefined);
-    setSelectedDeckForBuilder(loadedDecks.find((deck) => deck.id === id));
-  };
-
-  const handlePassTurn = () => {
-    if (!match.sala) return;
-    socketRef.current?.passarTurno(match.sala);
-  };
-
-  const handlePlayCard = (cartaId: string) => {
-    if (!match.sala) return;
-    socketRef.current?.jogarCarta(match.sala, cartaId);
-  };
-
-  const handleAttackFortress = (atacantesIds: string[]) => {
-    if (!match.sala) return;
-    socketRef.current?.atacarFortaleza(match.sala, atacantesIds);
-  };
-
-  const handleDeclareAttack = (atacanteId: string, alvoId: string) => {
-    if (!match.sala) return;
-    socketRef.current?.declararAtaque(match.sala, atacanteId, alvoId);
-  };
-
-  const handleAttackSelectionChange = (attackSelection: NonNullable<MatchState['attackSelection']>) => {
-    setMatch((prev) => ({ ...prev, attackSelection }));
-  };
-
-  const handleTryReconnect = () => {
-    socketRef.current?.reconectarPartida(match.sala);
-    setConnection((prev) => ({ ...prev, reconnecting: true }));
   };
 
   const handleLogout = async () => {
-    socketRef.current?.disconnect();
-    setSession(null);
-    setMatch({});
-    setEvents({});
-    setConnection(INITIAL_CONNECTION);
-    await logout();
+    matchSession.resetAfterLogout();
+    await authSession.doLogout();
     setStep('login');
-  };
-
-  const handleBackToLobby = () => {
-    setEvents({});
-    setMatch({});
-    setConnection((prev) => ({ ...prev, abandonmentDefeat: false }));
-    setStep('lobby');
   };
 
   return (
@@ -314,28 +76,30 @@ export default function App() {
       <h1>Aura Cardgame Frontend</h1>
       <small>Contrato Socket {SOCKET_CONTRACT_VERSION}</small>
       <p>
-        Fluxo: <strong>{step}</strong> {mockMode ? '(mock ativo)' : '(backend online)'}
+        Fluxo: <strong>{step}</strong> {matchSession.mockMode ? '(mock ativo)' : '(backend online)'}
       </p>
       <p>
-        Conexão: <strong>{connection.connected ? 'online' : 'offline'}</strong>
-        {connection.reconnecting ? ` · reconectando (${connection.reconnectAttempts} tentativa(s))` : ''}
+        Conexão: <strong>{matchSession.connection.connected ? 'online' : 'offline'}</strong>
+        {matchSession.connection.reconnecting
+          ? ` · reconectando (${matchSession.connection.reconnectAttempts} tentativa(s))`
+          : ''}
       </p>
 
       {step === 'login' ? (
         <LoginView
-          email={email}
-          password={password}
-          isAuthenticated={Boolean(authUser)}
-          userId={authUser?.uid}
-          authError={authError}
-          mockMode={mockMode}
+          email={authSession.email}
+          password={authSession.password}
+          isAuthenticated={Boolean(authSession.authUser)}
+          userId={authSession.authUser?.uid}
+          authError={authSession.authError}
+          mockMode={matchSession.mockMode}
           canUseMockMode={CAN_USE_MOCK_MODE}
-          canUseFirebaseAuth={hasFirebaseConfig}
-          onEmailChange={setEmail}
-          onPasswordChange={setPassword}
-          onMockToggle={setMockMode}
-          onEmailPasswordLogin={handleEmailPasswordLogin}
-          onAnonymousLogin={handleAnonymousLogin}
+          canUseFirebaseAuth={authSession.canUseFirebaseAuth}
+          onEmailChange={authSession.setEmail}
+          onPasswordChange={authSession.setPassword}
+          onMockToggle={matchSession.setMockMode}
+          onEmailPasswordLogin={() => void authSession.loginWithEmailAndPassword()}
+          onAnonymousLogin={() => void authSession.loginAsAnonymous()}
           onGoToRegister={() => setStep('cadastro')}
           onSubmit={() => void handleLogin()}
         />
@@ -343,14 +107,14 @@ export default function App() {
 
       {step === 'cadastro' ? (
         <RegisterView
-          email={email}
-          password={password}
-          confirmPassword={confirmPassword}
-          authError={authError}
-          canUseFirebaseAuth={hasFirebaseConfig}
-          onEmailChange={setEmail}
-          onPasswordChange={setPassword}
-          onConfirmPasswordChange={setConfirmPassword}
+          email={authSession.email}
+          password={authSession.password}
+          confirmPassword={authSession.confirmPassword}
+          authError={authSession.authError}
+          canUseFirebaseAuth={authSession.canUseFirebaseAuth}
+          onEmailChange={authSession.setEmail}
+          onPasswordChange={authSession.setPassword}
+          onConfirmPasswordChange={authSession.setConfirmPassword}
           onRegister={() => void handleRegister()}
           onBackToLogin={() => setStep('login')}
         />
@@ -358,64 +122,64 @@ export default function App() {
 
       {step === 'lobby' ? (
         <LobbyView
-          decks={decks}
-          deckId={deckId}
+          decks={authSession.decks}
+          deckId={authSession.deckId}
           deckValidationError={deckErrorMessage}
           onDeckChange={(value) => {
-            setDeckId(value);
+            authSession.setDeckId(value);
             setDeckErrorMessage(undefined);
           }}
           onBuscarPartida={handleBuscarPartida}
           onOpenCollection={() => setStep('colecao')}
           onOpenDeckBuilder={() => {
-            setSelectedDeckForBuilder(decks.find((deck) => deck.id === deckId));
+            authSession.setSelectedDeckForBuilder(authSession.decks.find((deck) => deck.id === authSession.deckId));
             setStep('deckbuilder');
           }}
           onLogout={() => void handleLogout()}
         />
       ) : null}
 
-      {step === 'colecao' ? <CollectionView cards={catalogCards} onBack={() => setStep('lobby')} /> : null}
+      {step === 'colecao' ? <CollectionView cards={authSession.catalogCards} onBack={() => setStep('lobby')} /> : null}
 
       {step === 'deckbuilder' ? (
         <DeckBuilderView
-          cards={catalogCards}
-          deck={selectedDeckForBuilder}
+          cards={authSession.catalogCards}
+          deck={authSession.selectedDeckForBuilder}
           onBack={() => setStep('lobby')}
           onSave={handleSaveDeck}
         />
       ) : null}
 
-      {step === 'matchmaking' ? <MatchmakingView status={status} /> : null}
+      {step === 'matchmaking' ? <MatchmakingView status={matchSession.status} /> : null}
 
       {step === 'partida' ? (
         <PartidaView
-          sala={match.sala}
-          estado={match.estado}
-          attackSelection={match.attackSelection}
-          userId={session?.userId ?? authUser?.uid ?? ''}
-          isReconnecting={connection.reconnecting}
-          reconnectMessage={connection.reconnectingMessage}
-          onPassTurn={handlePassTurn}
-          onPlayCard={handlePlayCard}
-          onAttackFortress={handleAttackFortress}
-          onDeclareAttack={handleDeclareAttack}
-          onAttackSelectionChange={handleAttackSelectionChange}
-          onTryReconnect={handleTryReconnect}
+          sala={matchSession.match.sala}
+          estado={matchSession.match.estado}
+          attackSelection={matchSession.match.attackSelection}
+          userId={matchSession.session?.userId ?? authSession.authUser?.uid ?? ''}
+          isReconnecting={matchSession.connection.reconnecting}
+          reconnectMessage={matchSession.connection.reconnectingMessage}
+          onPassTurn={matchSession.passTurn}
+          onPlayCard={matchSession.playCard}
+          onAttackFortress={matchSession.attackFortress}
+          onDeclareAttack={matchSession.declareAttack}
+          onAttackSelectionChange={matchSession.setAttackSelection}
+          onTryReconnect={matchSession.tryReconnect}
         />
       ) : null}
 
       {step === 'resultado' ? (
         <ResultadoView
-          winnerId={events.fimDeJogo?.vencedor}
-          localUserId={session?.userId ?? authUser?.uid ?? ''}
-          abandonmentDefeat={connection.abandonmentDefeat}
-          reason={events.erroPartida?.motivo}
-          onBackToLobby={handleBackToLobby}
+          winnerId={matchSession.events.fimDeJogo?.vencedor}
+          localUserId={matchSession.session?.userId ?? authSession.authUser?.uid ?? ''}
+          abandonmentDefeat={matchSession.connection.abandonmentDefeat}
+          reason={matchSession.events.erroPartida?.motivo}
+          onBackToLobby={matchSession.backToLobby}
         />
       ) : null}
 
-      {events.erroPartida ? <p style={{ color: 'crimson' }}>Erro: {events.erroPartida.motivo}</p> : null}
+      {matchSession.events.erroPartida ? <p style={{ color: 'crimson' }}>Erro: {matchSession.events.erroPartida.motivo}</p> : null}
     </main>
   );
 }
